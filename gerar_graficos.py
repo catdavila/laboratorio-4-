@@ -1,4 +1,4 @@
-# Gera os gráficos do relatório a partir de resultados/resultados.csv e resultados/pilha.csv
+# Gera os gráficos do relatório a partir de resultados/resultados.csv
 # Uso: python3 gerar_graficos.py
 import csv, math, os
 import matplotlib
@@ -120,19 +120,20 @@ for x, a, b in zip(n, t1, t2):
         ax2.plot([x, x], [b, a], ":", color=CINZA, lw=1)
 fig.savefig("graficos/fig4_solucao1_vs_solucao2.png"); plt.close(fig)
 
-# ---------- 5. Estouro de pilha ----------
-p = list(csv.DictReader(open("resultados/pilha.csv")))
-kb = [float(r["pilha_kb"]) for r in p]
-nmax = [float(r["n_max"]) for r in p]
-a, b, r2 = ajuste(kb, nmax)
-fig, ax = plt.subplots(figsize=(6.5, 4))
-ax.plot(kb, [a * x + b for x in kb], "--", color=CINZA, label=f"Ajuste linear: N_max = {a:.2f}·pilha(KB) {b:+.0f}  (R²={r2:.5f})")
-ax.plot(kb, nmax, "o", color=LARANJA, ms=8, label="Medido: maior N sem estouro")
-ax.set(title="Busca sequencial recursiva: N máximo antes do estouro de pilha", xlabel="tamanho da pilha (KB, ulimit -s)", ylabel="N máximo")
-ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"{v/1000:.0f} mil"))
-ax.legend(fontsize=8)
-fig.savefig("graficos/fig5_estouro_pilha.png"); plt.close(fig)
-resumo.append(("Pilha: bytes por chamada recursiva", "1024/a", 1024 / a, b, r2, "bytes"))
+# ---------- 5. Estouro de pilha (opcional: só se resultados/pilha.csv existir) ----------
+if os.path.exists("resultados/pilha.csv"):
+    p = list(csv.DictReader(open("resultados/pilha.csv")))
+    kb = [float(r["pilha_kb"]) for r in p]
+    nmax = [float(r["n_max"]) for r in p]
+    a, b, r2 = ajuste(kb, nmax)
+    fig, ax = plt.subplots(figsize=(6.5, 4))
+    ax.plot(kb, [a * x + b for x in kb], "--", color=CINZA, label=f"Ajuste linear: N_max = {a:.2f}·pilha(KB) {b:+.0f}  (R²={r2:.5f})")
+    ax.plot(kb, nmax, "o", color=LARANJA, ms=8, label="Medido: maior N sem estouro")
+    ax.set(title="Busca sequencial recursiva: N máximo antes do estouro de pilha", xlabel="tamanho da pilha (KB, ulimit -s)", ylabel="N máximo")
+    ax.yaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(lambda v, _: f"{v/1000:.0f} mil"))
+    ax.legend(fontsize=8)
+    fig.savefig("graficos/fig5_estouro_pilha.png"); plt.close(fig)
+    resumo.append(("Pilha: bytes por chamada recursiva", "1024/a", 1024 / a, b, r2, "bytes"))
 
 with open("resultados/ajustes.csv", "w") as f:
     f.write("medida,modelo,a,b,r2,unidade\n")
