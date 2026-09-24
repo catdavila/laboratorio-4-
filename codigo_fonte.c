@@ -119,14 +119,23 @@ int busca_binaria_recursiva(char **vetor, int esq, int dir, const char *chave) {
 
 
 
-// Extrai a chave (primeira coluna) de uma linha CSV
+// Coluna usada como chave de unicidade: CPB (2a coluna, indice 1).
+// O arquivo da ANCINE usa ';' como separador.
+#define SEPARADOR ';'
+#define COLUNA_CHAVE 1
+
+// Extrai a chave (coluna COLUNA_CHAVE) de uma linha CSV
 void extrair_chave(const char *linha, char *chave_out) {
-    int i = 0;
-    while (linha[i] != '\0' && linha[i] != ',' && linha[i] != '\n' && linha[i] != '\r') {
-        chave_out[i] = linha[i];
+    int i = 0, coluna = 0;
+    while (linha[i] != '\0' && coluna < COLUNA_CHAVE) {
+        if (linha[i] == SEPARADOR) coluna++;
         i++;
     }
-    chave_out[i] = '\0';
+    int j = 0;
+    while (linha[i] != '\0' && linha[i] != SEPARADOR && linha[i] != '\n' && linha[i] != '\r') {
+        chave_out[j++] = linha[i++];
+    }
+    chave_out[j] = '\0';
 }
 
 // Carrega as chaves do arquivo de destino para a RAM
@@ -139,10 +148,10 @@ int carregar_chaves_destino(const char *nome_arquivo, char ***vetor_chaves) {
     int count = 0;
     char chave_tmp[MAX_LINE];
 
-    // Pula o cabeçalho se houver (opcional, mas recomendado dependendo do arquivo)
-    // fgets(linha, MAX_LINE, file);
+    // Pula o cabeçalho
+    if (!fgets(linha, MAX_LINE, file)) { fclose(file); return 0; }
 
-    while (fgets(linha, MAX_LINE, file)) {
+    while (fgets(linha, MAX_LINE, file) && count < MAX_KEYS) {
         extrair_chave(linha, chave_tmp);
         if (strlen(chave_tmp) > 0) {
             (*vetor_chaves)[count] = strdup(chave_tmp);
@@ -158,18 +167,26 @@ int carregar_chaves_destino(const char *nome_arquivo, char ***vetor_chaves) {
 
 
 int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        printf("Uso: %s <arquivo_novos_registros.csv> <arquivo_destino.csv>\n", argv[0]);
-        printf("Exemplo utilizando: ./programa obras-nao-pub-brasileiras-2026.csv destino.csv\n");
+    if (argc < 3 || argc > 4) {
+        printf("Uso: %s <arquivo_novos_registros.csv> <arquivo_destino.csv> [metodo]\n", argv[0]);
+        printf("  metodo 1 = Solucao 1, busca sequencial iterativa\n");
+        printf("  metodo 2 = Solucao 1, busca sequencial recursiva\n");
+        printf("  metodo 3 = Solucao 2, MergeSort iterativo + busca binaria iterativa (padrao)\n");
+        printf("  metodo 4 = Solucao 2, MergeSort recursivo + busca binaria recursiva\n");
+        printf("Exemplo: %s novos.csv obras-nao-pub-brasileiras-2026.csv 3\n", argv[0]);
         return 1;
     }
 
     const char *arq_novos = argv[1];
     const char *arq_destino = argv[2];
+    int metodo = (argc == 4) ? atoi(argv[3]) : 3;
+    if (metodo < 1 || metodo > 4) {
+        printf("Metodo invalido: %s\n", argv[3]);
+        return 1;
+    }
 
     char **chaves_destino = NULL;
     int num_chaves = carregar_chaves_destino(arq_destino, &chaves_destino);
-    
     printf("Carregadas %d chaves existentes do arquivo destino.\n", num_chaves);
 
     // Abre o arquivo de novos registros para leitura
@@ -179,6 +196,21 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    char linha[MAX_LINE];
+    char chave_tmp[MAX_LINE];
+
+    // Cabeçalho do arquivo de novos registros
+    if (!fgets(linha, MAX_LINE, f_novos)) {
+        printf("Arquivo de novos registros vazio.\n");
+        fclose(f_novos);
+        return 1;
+    }
+
+    // Verifica se o destino já existe (para decidir se escreve o cabeçalho)
+    FILE *teste = fopen(arq_destino, "r");
+    int destino_existe = (teste != NULL);
+    if (teste) fclose(teste);
+
     // Abre o arquivo destino para append
     FILE *f_destino = fopen(arq_destino, "a");
     if (!f_destino) {
@@ -186,21 +218,21 @@ int main(int argc, char *argv[]) {
         fclose(f_novos);
         return 1;
     }
+    if (!destino_existe) fputs(linha, f_destino);
 
-    // EXEMPLO: Escolha da estratégia de busca (Mude para testar outras abordagens)
-    // Para Solução 2, precisamos ordenar primeiro:
-    
-    clock_t inicio_sort = clock();
-    if (num_chaves > 0) {
-        mergesort_iterativo(chaves_destino, num_chaves);
-        // mergesort_recursivo(chaves_destino, 0, num_chaves - 1);
+    // Solução 2: ordena o vetor de chaves antes das buscas
+    if (metodo >= 3) {
+        clock_t inicio_sort = clock();
+        if (num_chaves > 0) {
+            if (metodo == 3) mergesort_iterativo(chaves_destino, num_chaves);
+            else mergesort_recursivo(chaves_destino, 0, num_chaves - 1);
+        }
+        clock_t fim_sort = clock();
+        double tempo_sort = ((double)(fim_sort - inicio_sort)) / CLOCKS_PER_SEC;
+        printf("Tempo de ordenacao (MergeSort %s): %f segundos\n",
+               metodo == 3 ? "iterativo" : "recursivo", tempo_sort);
     }
-    clock_t fim_sort = clock();
-    double tempo_sort = ((double)(fim_sort - inicio_sort)) / CLOCKS_PER_SEC;
-    printf("Tempo de ordenacao (MergeSort): %f segundos\n", tempo_sort);
 
-    char linha[MAX_LINE];
-    char chave_tmp[MAX_LINE];
     int registros_inseridos = 0;
     int registros_ignorados = 0;
 
@@ -212,22 +244,15 @@ int main(int argc, char *argv[]) {
         if (strlen(chave_tmp) == 0) continue;
 
         int duplicado = 0;
-
-        // --- SOLUÇÃO 1: Busca Sequencial (Descomente para testar) ---
-        // duplicado = busca_sequencial_iterativa(chaves_destino, num_chaves, chave_tmp);
-        // duplicado = busca_sequencial_recursiva(chaves_destino, num_chaves, chave_tmp, 0);
-
-        // --- SOLUÇÃO 2: Busca Binária (Requer vetor ordenado) ---
-        duplicado = busca_binaria_iterativa(chaves_destino, num_chaves, chave_tmp);
-        // duplicado = busca_binaria_recursiva(chaves_destino, 0, num_chaves - 1, chave_tmp);
+        switch (metodo) {
+            case 1: duplicado = busca_sequencial_iterativa(chaves_destino, num_chaves, chave_tmp); break;
+            case 2: duplicado = busca_sequencial_recursiva(chaves_destino, num_chaves, chave_tmp, 0); break;
+            case 3: duplicado = busca_binaria_iterativa(chaves_destino, num_chaves, chave_tmp); break;
+            case 4: duplicado = busca_binaria_recursiva(chaves_destino, 0, num_chaves - 1, chave_tmp); break;
+        }
 
         if (!duplicado) {
             fputs(linha, f_destino);
-            
-            // ATENÇÃO: Para manter a consistência em tempo de execução contínua com busca binária,
-            // a nova chave deveria ser inserida no vetor 'chaves_destino' mantendo a ordenação.
-            // Para fins de demonstração acadêmica da complexidade, a inserção aqui foca no arquivo.
-            
             registros_inseridos++;
         } else {
             registros_ignorados++;

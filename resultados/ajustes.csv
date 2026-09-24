@@ -1,0 +1,8 @@
+medida,modelo,a,b,r2,unidade
+Busca sequencial iterativa,a·N+b,0.00449712,0.334454,0.999848,µs
+Busca sequencial recursiva,a·N+b,0.0110571,-4.67362,0.999008,µs
+Busca binária iterativa,a·log₂N+b,42.7303,-218.785,0.964291,ns
+Busca binária recursiva,a·log₂N+b,47.48,-195.94,0.963337,ns
+MergeSort iterativo,a·N·log₂N+b,3.48306e-05,-7.77037,0.992998,ms
+MergeSort recursivo,a·N·log₂N+b,3.46577e-05,-7.20694,0.993951,ms
+Pilha: bytes por chamada recursiva,1024/a,64.0014,-218.058,1.000000,bytes
